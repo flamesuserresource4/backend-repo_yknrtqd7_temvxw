@@ -103,6 +103,30 @@ def list_placements(student_id: Optional[str] = None, status: Optional[str] = No
         filt["status"] = status
     return get_documents(collection_name(Placement), filt)
 
+# Update placement: status change, assign supervisors, notes
+class PlacementUpdate(BaseModel):
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    supervisor_dosen_id: Optional[str] = None
+    supervisor_industri_id: Optional[str] = None
+
+@app.patch("/placements/{placement_id}")
+def update_placement(placement_id: str, payload: PlacementUpdate):
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not available")
+    from bson import ObjectId
+    try:
+        oid = ObjectId(placement_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="ID tidak valid")
+    data = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not data:
+        return {"updated": 0}
+    res = db[collection_name(Placement)].update_one({"_id": oid}, {"$set": data, "$currentDate": {"updated_at": True}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Penempatan tidak ditemukan")
+    return {"updated": res.modified_count}
+
 @app.post("/logs", response_model=IdResponse)
 def create_log(log: Log):
     log_dict = log.model_dump()
